@@ -1,0 +1,6 @@
+{
+	"appId": "com.merzlabs.zuckr",
+	"appName": "zuckr",
+	"webDir": "build",
+	"bundledWebRuntime": false
+}
