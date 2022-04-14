@@ -51,7 +51,8 @@
 			).json();
 			lastWeatherRequestDate = new Date();
 
-			if (!json.current?.weather[0]?.id || json.minutely?.length === 0) {
+			if (!json.current?.weather[0]?.id || !json.minutely) {
+				alert('Could not get weather data');
 				throw new Error('Could not get weather data');
 			}
 
