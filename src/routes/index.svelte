@@ -7,13 +7,14 @@
 	import Chart from 'svelte-frappe-charts';
 
 	import { wetWeatherCodes } from '../definitions/weatherCodes';
+	import { rainMmToSeverity } from '../logic/utils';
 
 	// TODO do not expose to client, make api proxy route
-    import { OPENWEATHERMAP_API_KEY } from 'src/constants';
+	import { OPENWEATHERMAP_API_KEY } from '../constants';
 
 	let loc: Position;
 
-	let weatherRequest = getWeatherInfo();
+	let weatherRequest: Promise<any> = new Promise(() => {});
 	let lastWeatherRequestDate = new Date();
 
 	// weather condition codes here:
@@ -40,20 +41,6 @@
 		}
 	}
 
-	function rainMmToSeverity(mm: number) {
-		if (mm < 0.1) {
-			return 'Trocken';
-		} else if (mm < 2.5) {
-			return 'Leichter Regen';
-		} else if (mm < 7.61) {
-			return 'Mittelschwerer Regen';
-		} else if (mm < 50) {
-			return 'Starkregen';
-		} else {
-			return 'Heftiger Regen';
-		}
-	}
-
 	async function getWeatherInfo() {
 		try {
 			const loc = await getCurrentPosition();
@@ -62,7 +49,11 @@
 					`https://api.openweathermap.org/data/2.5/onecall?lat=${loc.coords.latitude}&lon=${loc.coords.longitude}&units=metric&exclude=hourly,daily,alerts&appid=${OPENWEATHERMAP_API_KEY}`
 				)
 			).json();
-            lastWeatherRequestDate = new Date();
+			lastWeatherRequestDate = new Date();
+
+			if (!json.current?.weather[0]?.id || json.minutely?.length === 0) {
+				throw new Error('Could not get weather data');
+			}
 
 			// TODO eventually check all not just first weather item
 			const currentWeatherId = json.current.weather[0].id;
@@ -73,7 +64,7 @@
 			let precipitationEndAt = undefined;
 
 			if (precipitationHappening) {
-				for (let i = 0; i < json.minutely.length; i++) {
+				for (let i = 0; i < json.minutely?.length; i++) {
 					const minutelyForecast = json.minutely[i];
 					if (minutelyForecast.precipitation === 0) {
 						precipitationEndAt = new Date(minutelyForecast.dt * 1000);
@@ -81,7 +72,7 @@
 					}
 				}
 			} else {
-				for (let i = 0; i < json.minutely.length; i++) {
+				for (let i = 0; i < json.minutely?.length; i++) {
 					const minutelyForecast = json.minutely[i];
 					if (minutelyForecast.precipitation > 0) {
 						precipitationStartAt = new Date(minutelyForecast.dt * 1000);
@@ -179,20 +170,21 @@
 		return Math.round((target.getTime() - new Date().getTime()) / 60000);
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		// await Geolocation.watchPosition({}, (location) => loc = location);
 		// getWeatherInfo();
-	});
+		weatherRequest = getWeatherInfo();
 
-	App?.addListener('appStateChange', ({ isActive }) => {
-		const minutesSinceLastRequest = Math.round(
-			(new Date().getTime() - lastWeatherRequestDate.getTime()) / 60000
-		);
+		App?.addListener('appStateChange', ({ isActive }) => {
+			const minutesSinceLastRequest = Math.round(
+				(new Date().getTime() - lastWeatherRequestDate.getTime()) / 60000
+			);
 
-        // refresh on app changing to foreground and current data being older than 5 minutes
-		if (isActive && minutesSinceLastRequest > 5) {
-			weatherRequest = getWeatherInfo();
-		}
+			// refresh on app changing to foreground and current data being older than 5 minutes
+			if (isActive && minutesSinceLastRequest > 5) {
+				weatherRequest = getWeatherInfo();
+			}
+		});
 	});
 </script>
 
@@ -245,16 +237,16 @@
 </div>
 
 <style lang="scss">
-    @media (prefers-color-scheme: dark) {
-        :global(body) {
-            background: #333;
-            color: #fff;
-        }
-    }
+	@media (prefers-color-scheme: dark) {
+		:global(body) {
+			background: #333;
+			color: #fff;
+		}
+	}
 
-    @media (prefers-color-scheme: light) {
-        // for light mode definitions
-    }
+	@media (prefers-color-scheme: light) {
+		// for light mode definitions
+	}
 
 	#container {
 		display: flex;
